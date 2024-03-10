@@ -1,0 +1,117 @@
+Ansible playbook variable substitution vault shell script awesome examples by Jordan 091222 adduser also publish users public key on remote nodes total steps
+
+
+Two ways to run ansible playbook 
+
+A. Using ansible-playbook cmd
+
+ansible-playbook —ask-vault-pass —list-hosts “nodes=newurl4website newuserid=ansibleuser09122203 userskey=‘ssh-rsa AAA….. ansibleuser091222@jordandevtest’”
+
+B. Use shell script/google script instead
+
+jlee@jordanhomedir:./google_adduser.sh newurl4website ansibleuser092203 ‘ssh-rsa…………………………………………….  ansibleuser09122202@jordantestdev’.  ( specify three positional parameters ) 
+
+
+
+
+cat adduser09122202.yml
+
+- hosts: “{{ nodes }}”
+  remote_user: jlee
+  become: yes
+  vars_files:
+      - ansibleuservault.yml
+  tasks:
+     - name: register user exist or not status
+       shell: /usr/bin/getent passwd “{{ newuserid }}” | wc -l
+       register: result
+
+     - debug:
+           msg: “{{ newuserid }} exists already ”
+       when: result.stdout == “1”
+
+     - debug:
+            msg: “{{ newuserid }} NOT EXIST  “
+        when: result.stdout == “0”
+
+     - name: Add new group if not already exist 
+       group: 
+          name: “{{ item.name }}”
+          state: present
+       loop:
+          - name: “{{ newuserid }}”
+#.        - name: “{{ newuserid }}01”
+#.        - name: “{{ newuserid }}02”
+       when: result.stdout == “0”
+
+     - name: create user if not already exists
+       user:
+           name: “{{ newuserid }}”
+           comment: “{{ newuserid }}”
+           groups: “{{ newuserid }},sudo”
+           append: yes
+           home: “/home/{{ newuserid }}”
+           password: “{{ my_password | password_hash(‘sha512’) }}”
+           shell: /usr/bin/bash
+           state: present
+        when: result.stdout == “0”
+
+      - name: create .ssh dir under user home dir if not already exists
+        file:
+          path: “{{ item }}”
+          state: directory
+          owner: “{{ newuserid }}”
+          group: “{{ newuserid }}”
+          mode: ‘0700’
+        tags: folder_permission_ownership_specify
+        with_items:
+            - “/home/{{ newuserid }}/.ssh”
+        when: result.stdout == “0”
+
+     - name: cat ansible user public key in authorized keys file
+       shell: echo “{{ item }}” > “/home/{{ newuserid }}/.ssh/authorized_keys”
+       with_items: “{{ userskey }}”
+       tags: echo_ansible_user_public_key_in_authorized_keys_file
+#.     when: result.stdout == “0”
+
+     - name: set the permission for authorized_keys file
+       file:
+         path: “{{ item }}”
+         state: file
+         owner: “{{ newuserid }}”
+         group: “{{ newuserid }}”
+         mode: “0600”
+       tags: set_authorized_keys_permissions
+       with_items:
+          - “/home/{{ newuserid }}/.ssh/authorized_keys”
+
+
+
+
+
+
+cat google_adduser.sh
+
+#!/usr/bin/bash
+
+cd /home/jlee
+ansible-playbook —ask-vault-pass adduser09122202.yml -e “nodes=$1 newuserid=$2 userskey=‘$3’”
+
+
+
+
+
+ansible-vault view ansibleuservault.yml
+Vault password:
+my_password: 09122201ansibleuser
+
+
+
+
+           
+
+
+
+
+
+
